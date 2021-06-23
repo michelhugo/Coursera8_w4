@@ -1,0 +1,111 @@
+---
+title: "Prediction of exercises correctness using machine learning algorithms"
+author: "Hugo Michel"
+date: "23/06/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+## Overview
+
+This project aims to determine whether or not a subject performs some exercises correctly or not using some kinetic sensors data. The data comes from  http://groupware.les.inf.puc-rio.br/har and consists in a training and testing dataset.
+
+The first step in this project consists in selecting only the relevant features for the models, by removing variables with NAs or those that do not contain numerical data. Then, different classification models were tried on the data and compared on a validation set. The model with the highest accuracy on this validation set was selected and used on the test data.
+
+## Data processing
+
+Let us load the data and have a look at the number of variables available in the dataset.
+```{r}
+training <- read.csv('pml-training.csv')
+testing <- read.csv('pml-testing.csv')
+print(dim(training))
+names(training)
+```
+There seems to be too many variables to feed our models, as we want to use only the values from the sensors. We want to keep only the variables without NA. Then, we select only the numerical or integer variables, as well as the class variables, which will be our target.
+
+
+```{r}
+library(dplyr)
+proTraining <- training[, colSums(is.na(training)) == 0]
+proTraining <- proTraining %>% select_if(sapply(., class) %in% c("numeric", "int") | names(.) %in% c('classe'))
+names(proTraining)
+```
+We obtain 27 independent variables to use in our models. We finally select a validation set from this training data to compare the models, with 60% of these going to train the models.
+
+```{r}
+library(caret)
+proTesting <- testing[, names(proTraining)[-28]]
+trainIndex <- createDataPartition(proTraining$classe, p = 0.6, list = FALSE)
+train <- proTraining[trainIndex, ]
+validation <- proTraining[-trainIndex, ]
+```
+
+
+## Model selection
+
+Let us try different models to assess their efficiency on this data. A good method to perform model selection is to use cross-validation (5) on the training data. Here is a list of the models tried:  
+- Random forest
+- Boosting model
+- Ensemble using these two
+
+For random forest model:
+```{r, cache = T}
+library(caret)
+rfModel <- train(classe ~ ., method = 'rf', data = train, trControl = trainControl(method="cv", number=5), verbose = FALSE)
+rfPred <- predict(rfModel, validation)
+rfRes <- confusionMatrix(rfPred, factor(validation$classe))
+rfRes
+```
+We obtain an accuracy of **0.9924** and an out-of-sample error of **0.0076**.
+
+Now for boosting algorithm:
+```{r, cache = T}
+boostModel <- train(classe ~ ., method = 'gbm', data = train, trControl = trainControl(method="cv", number=5), verbose = FALSE)
+boostPred <- predict(boostModel, validation)
+boostRes <- confusionMatrix(boostPred, factor(validation$classe))
+boostRes
+```
+We obtain an accuracy of **0.9545** and an out-of-sample error of **0.0455**.
+
+Now for support vector machine:
+```{r, cache = T}
+svmModel <- train(classe ~ ., method = 'svmLinear', data = train, trControl = trainControl(method="cv", number=5), verbose = FALSE)
+svmPred <- predict(svmModel, validation)
+svmRes <- confusionMatrix(svmPred, factor(validation$classe))
+svmRes
+```
+We obtain an accuracy of **0.5605** and an out-of-sample error of **0.4395**.
+
+Finally, with a combination of all previous models, trained with a random forest:
+```{r, cache = T}
+newDF <- data.frame(rfPred, boostPred, svmPred, classe = validation$classe)
+comboModel <- train(classe ~ ., method = 'rf', data = newDF)
+comboPred <- predict(comboModel, validation)
+comboRes <- confusionMatrix(comboPred, factor(validation$classe))
+comboRes
+```
+We obtain an accuracy of **0.9924** and an out-of-sample error of **0.0076**.
+
+All results are recapitulated into the figure below.
+```{r}
+accuracies <- c(svmRes$overall['Accuracy'], 
+                boostRes$overall['Accuracy'],
+                rfRes$overall['Accuracy'],
+                comboRes$overall['Accuracy'])
+barplot(accuracies, names.arg = c('SVM', 'Boosting', 'Random Forest', 'Ensemble'),
+        ylab = 'Accuracy', main = 'Accuracies of the different models on validation set')
+```
+The ensemble model does not provide more power than the random forest mainly due to the high score achieved already by this model. Therefore, the best model to use is simply random forest, as it is simpler than the ensemble.
+
+## Test prediction
+
+Here are the predictions made by the random forest model on the test data.
+```{r}
+predict(rfModel, proTesting)
+```
+
+
+NOTE: The cross-validation purpose would be to perform model or feature selection, but as this process is time consuming, it was not performed here. The models were directly compared on the validation set.

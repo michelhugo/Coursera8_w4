@@ -1,0 +1,6 @@
+"0","accuracies <- c(svmRes$overall['Accuracy'], "
+"0","                boostRes$overall['Accuracy'],"
+"0","                rfRes$overall['Accuracy'],"
+"0","                comboRes$overall['Accuracy'])"
+"0","barplot(accuracies, names.arg = c('SVM', 'Boosting', 'Random Forest', 'Ensemble'),"
+"0","        ylab = 'Accuracy', main = 'Accuracies of the different models on validation set')"

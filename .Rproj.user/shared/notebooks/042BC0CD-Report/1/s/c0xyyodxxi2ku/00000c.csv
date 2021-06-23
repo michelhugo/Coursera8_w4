@@ -1,0 +1,5 @@
+"0","library(caret)"
+"0","proTesting <- testing[, names(proTraining)[-28]]"
+"0","trainIndex <- createDataPartition(proTraining$classe, p = 0.6, list = FALSE)"
+"0","train <- proTraining[trainIndex, ]"
+"0","validation <- proTraining[-trainIndex, ]"
